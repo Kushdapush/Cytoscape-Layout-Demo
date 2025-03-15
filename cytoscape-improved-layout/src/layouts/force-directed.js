@@ -14,6 +14,8 @@ class ForceDirectedLayout {
         this.animationDuration = 500; // Duration for node position animations in ms
         this.animationEasing = 'ease-out'; // Easing function for animations
         this.isAnimating = false; // Flag to track if animation is in progress
+        this.minEdgeDistance = 50; // Minimum distance between edges
+        this.edgeRepulsionStrength = 200; // Strength of edge-edge repulsion
     }
 
     init(cy) {
@@ -27,7 +29,9 @@ class ForceDirectedLayout {
                 vx: 0,
                 vy: 0,
                 mass: node.data('mass') || 1, // Optional mass property
-                node: node // Reference to the actual Cytoscape node
+                node: node, // Reference to the actual Cytoscape node
+                width: node.width() || 50, // Node width for collision detection
+                height: node.height() || 50 // Node height for collision detection
             };
         });
         
@@ -35,7 +39,8 @@ class ForceDirectedLayout {
             return {
                 source: this.nodes.findIndex(n => n.id === edge.source().id()),
                 target: this.nodes.findIndex(n => n.id === edge.target().id()),
-                edge: edge // Reference to the actual Cytoscape edge
+                edge: edge, // Reference to the actual Cytoscape edge
+                weight: edge.data('weight') || 1 // Optional weight property
             };
         });
         
@@ -91,16 +96,25 @@ class ForceDirectedLayout {
                 const distanceSquared = dx * dx + dy * dy || 0.1; // Avoid division by zero
                 const distance = Math.sqrt(distanceSquared);
                 
-                // Repulsive force: inversely proportional to square of distance
-                const force = this.repulsionStrength / distanceSquared;
+                // Enhanced repulsive force between nodes
+                // Increase repulsion when nodes get too close to ensure minimum distance
+                const effectiveDistance = Math.max(distance, nodeA.width/2 + nodeB.width/2 + this.minEdgeDistance);
+                const nodeRepulsionFactor = this.repulsionStrength / (effectiveDistance * effectiveDistance);
+                
+                // Calculate repulsion direction
+                const forceX = dx / distance * nodeRepulsionFactor;
+                const forceY = dy / distance * nodeRepulsionFactor;
                 
                 // Apply force to both nodes, scaled by their mass
-                nodeA.vx -= force * dx / distance / nodeA.mass;
-                nodeA.vy -= force * dy / distance / nodeA.mass;
-                nodeB.vx += force * dx / distance / nodeB.mass;
-                nodeB.vy += force * dy / distance / nodeB.mass;
+                nodeA.vx -= forceX / nodeA.mass;
+                nodeA.vy -= forceY / nodeA.mass;
+                nodeB.vx += forceX / nodeB.mass;
+                nodeB.vy += forceY / nodeB.mass;
             }
         }
+        
+        // Apply edge-edge repulsion to prevent edge overlaps
+        this.applyEdgeRepulsion();
 
         // Update node positions
         this.nodes.forEach(node => {
@@ -116,6 +130,154 @@ class ForceDirectedLayout {
 
         // Reduce alpha to simulate damping
         this.alpha *= this.dampingFactor;
+    }
+    
+    // New method to calculate and apply edge-edge repulsion
+    applyEdgeRepulsion() {
+        // For each pair of edges, calculate if they are too close and apply repulsion
+        for (let i = 0; i < this.edges.length; i++) {
+            for (let j = i + 1; j < this.edges.length; j++) {
+                const edgeA = this.edges[i];
+                const edgeB = this.edges[j];
+                
+                // Skip if edges share a node (they will naturally have a close point)
+                if (edgeA.source === edgeB.source || edgeA.source === edgeB.target || 
+                    edgeA.target === edgeB.source || edgeA.target === edgeB.target) {
+                    continue;
+                }
+                
+                // Get edge line segments
+                const sourceA = this.nodes[edgeA.source];
+                const targetA = this.nodes[edgeA.target];
+                const sourceB = this.nodes[edgeB.source];
+                const targetB = this.nodes[edgeB.target];
+                
+                // Find closest points between the two edges
+                const closestPoints = this.closestPointsBetweenSegments(
+                    sourceA.x, sourceA.y, targetA.x, targetA.y,
+                    sourceB.x, sourceB.y, targetB.x, targetB.y
+                );
+                
+                if (!closestPoints) continue;
+                
+                const { point1, point2, distance } = closestPoints;
+                
+                // If edges are too close, apply repulsive forces to their nodes
+                if (distance < this.minEdgeDistance) {
+                    // Calculate repulsion direction
+                    const dx = point2.x - point1.x;
+                    const dy = point2.y - point1.y;
+                    const magnitude = Math.sqrt(dx * dx + dy * dy) || 0.1;
+                    
+                    // Calculate repulsion strength (stronger when closer)
+                    const edgeRepulsionFactor = this.edgeRepulsionStrength * 
+                        (this.minEdgeDistance - distance) / this.minEdgeDistance;
+                    
+                    // Calculate normalized force components
+                    const forceX = dx / magnitude * edgeRepulsionFactor;
+                    const forceY = dy / magnitude * edgeRepulsionFactor;
+                    
+                    // Apply forces to the nodes of both edges (distribute force among endpoints)
+                    // First edge nodes move away from second edge
+                    sourceA.vx -= forceX * 0.5;
+                    sourceA.vy -= forceY * 0.5;
+                    targetA.vx -= forceX * 0.5;
+                    targetA.vy -= forceY * 0.5;
+                    
+                    // Second edge nodes move in opposite direction
+                    sourceB.vx += forceX * 0.5;
+                    sourceB.vy += forceY * 0.5;
+                    targetB.vx += forceX * 0.5;
+                    targetB.vy += forceY * 0.5;
+                }
+            }
+        }
+    }
+    
+    // Helper method to find closest points between two line segments
+    closestPointsBetweenSegments(x1, y1, x2, y2, x3, y3, x4, y4) {
+        // Line segment 1: (x1, y1) to (x2, y2)
+        // Line segment 2: (x3, y3) to (x4, y4)
+        
+        // Direction vectors
+        const dx1 = x2 - x1;
+        const dy1 = y2 - y1;
+        const dx2 = x4 - x3;
+        const dy2 = y4 - y3;
+        
+        // Segment lengths squared
+        const len1Squared = dx1 * dx1 + dy1 * dy1;
+        const len2Squared = dx2 * dx2 + dy2 * dy2;
+        
+        // If either segment is actually a point, use point-to-segment distance
+        if (len1Squared < 0.0001 || len2Squared < 0.0001) {
+            // Use simple point-to-point distance instead
+            const distance = Math.sqrt((x1 - x3) * (x1 - x3) + (y1 - y3) * (y1 - y3));
+            return {
+                point1: { x: x1, y: y1 },
+                point2: { x: x3, y: y3 },
+                distance: distance
+            };
+        }
+        
+        // Cross product of the two direction vectors
+        const cross = dx1 * dy2 - dy1 * dx2;
+        
+        // If lines are parallel (or close to it)
+        if (Math.abs(cross) < 0.0001) {
+            // Use the closest endpoint method
+            let minDist = Number.MAX_VALUE;
+            let p1 = null, p2 = null;
+            
+            // Test all endpoint combinations
+            const testPoints = [
+                { p1: { x: x1, y: y1 }, p2: { x: x3, y: y3 } },
+                { p1: { x: x1, y: y1 }, p2: { x: x4, y: y4 } },
+                { p1: { x: x2, y: y2 }, p2: { x: x3, y: y3 } },
+                { p1: { x: x2, y: y2 }, p2: { x: x4, y: y4 } }
+            ];
+            
+            for (const { p1: point1, p2: point2 } of testPoints) {
+                const d = Math.sqrt((point1.x - point2.x) * (point1.x - point2.x) + 
+                                    (point1.y - point2.y) * (point1.y - point2.y));
+                if (d < minDist) {
+                    minDist = d;
+                    p1 = point1;
+                    p2 = point2;
+                }
+            }
+            
+            return { point1: p1, point2: p2, distance: minDist };
+        }
+        
+        // Calculate parameters for the closest points
+        const dx3 = x1 - x3;
+        const dy3 = y1 - y3;
+        
+        const t1 = (dx3 * dy2 - dy3 * dx2) / cross;
+        const t2 = (dx3 * dy1 - dy3 * dx1) / cross;
+        
+        // Check if closest points are within segments
+        const t1Clamped = Math.max(0, Math.min(1, t1));
+        const t2Clamped = Math.max(0, Math.min(1, t2));
+        
+        // Calculate closest points
+        const point1 = {
+            x: x1 + t1Clamped * dx1,
+            y: y1 + t1Clamped * dy1
+        };
+        
+        const point2 = {
+            x: x3 + t2Clamped * dx2,
+            y: y3 + t2Clamped * dy2
+        };
+        
+        // Calculate distance between closest points
+        const dx = point2.x - point1.x;
+        const dy = point2.y - point1.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        return { point1, point2, distance };
     }
     
     // Update node positions in Cytoscape with optional animation
@@ -178,7 +340,7 @@ class ForceDirectedLayout {
                 initialY = sumY / connectedCount;
                 
                 // Add a small offset to avoid overlapping
-                const offset = this.idealEdgeLength * 0.5;
+                const offset = this.idealEdgeLength * 0.75; // Increased offset for better spacing
                 initialX += (Math.random() - 0.5) * offset;
                 initialY += (Math.random() - 0.5) * offset;
             }
@@ -205,7 +367,9 @@ class ForceDirectedLayout {
             vx: 0,
             vy: 0,
             mass: nodeData.mass || 1,
-            node: newCyNode
+            node: newCyNode,
+            width: newCyNode.width() || 50,
+            height: newCyNode.height() || 50
         };
         
         this.nodes.push(newNode);
@@ -228,7 +392,8 @@ class ForceDirectedLayout {
                 const newEdge = {
                     source: newNodeIndex,
                     target: targetIndex,
-                    edge: newCyEdge
+                    edge: newCyEdge,
+                    weight: 1
                 };
                 
                 this.edges.push(newEdge);
@@ -257,8 +422,8 @@ class ForceDirectedLayout {
             y: node.y
         }));
         
-        // Run multiple iterations of the algorithm
-        for (let i = 0; i < 50; i++) {
+        // Run multiple iterations of the algorithm, with more iterations for better edge spacing
+        for (let i = 0; i < 75; i++) {
             this.applyLayout();
         }
         
@@ -350,7 +515,7 @@ class ForceDirectedLayout {
         
         if (count > 0) {
             // Add a small random offset to avoid overlapping
-            const offset = this.idealEdgeLength * 0.5;
+            const offset = this.idealEdgeLength * 0.75;
             return {
                 x: sumX / count + (Math.random() - 0.5) * offset,
                 y: sumY / count + (Math.random() - 0.5) * offset
