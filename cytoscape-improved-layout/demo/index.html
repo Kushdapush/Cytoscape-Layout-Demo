@@ -1,3 +1,4 @@
+cytoscape-improved-layout/demo/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,26 +15,41 @@
         button {
             margin-right: 10px;
             padding: 5px 10px;
+            margin-bottom: 10px;
+        }
+        .button-group {
+            margin-bottom: 15px;
+        }
+        .new-node-controls {
+            margin-top: 20px;
+            padding-top: 10px;
+            border-top: 1px solid #ccc;
         }
     </style>
-    <!-- Use CDN for Cytoscape.js -->
+    <!-- Import Cytoscape -->
     <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+    
+    <!-- Import layout algorithms directly -->
+    <script src="../src/layouts/force-directed.js"></script>
+    <script src="../src/layouts/circular.js"></script>
+    <script src="../src/layouts/grid.js"></script>
 </head>
 <body>
     <h1>Cytoscape Improved Layout Demo</h1>
-    <div id="cy"></div>
-    <div>
+    <div class="button-group">
         <button id="force-directed">Force Directed Layout</button>
         <button id="circular">Circular Layout</button>
         <button id="grid">Grid Layout</button>
     </div>
-
-    <!-- Include your layout scripts -->
-    <script src="../src/layouts/force-directed.js"></script>
-    <script src="../src/layouts/circular.js"></script>
-    <script src="../src/layouts/grid.js"></script>
     
-    <!-- Include your demo script -->
+    <div class="new-node-controls">
+        <h3>Dynamic Node Addition</h3>
+        <button id="add-node">Add New Node</button>
+    </div>
+    
+    <div id="cy"></div>
+
+    <!-- Our demo script -->
     <script src="demo.js"></script>
 </body>
 </html>
