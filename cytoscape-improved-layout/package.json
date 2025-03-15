@@ -1,0 +1,28 @@
+{
+  "name": "cytoscape-improved-layout",
+  "version": "1.0.0",
+  "description": "An extension to Cytoscape.js that improves node placement using various graph algorithms.",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "webpack --mode production",
+    "test": "jest"
+  },
+  "keywords": [
+    "cytoscape",
+    "layout",
+    "graph",
+    "force-directed",
+    "circular",
+    "grid"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "cytoscape": "^3.20.0"
+  },
+  "devDependencies": {
+    "webpack": "^5.0.0",
+    "webpack-cli": "^4.0.0",
+    "jest": "^27.0.0"
+  }
+}

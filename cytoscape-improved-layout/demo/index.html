@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cytoscape Improved Layout Demo</title>
+    <style>
+        #cy {
+            width: 800px;
+            height: 600px;
+            border: 1px solid black;
+            margin-bottom: 20px;
+        }
+        button {
+            margin-right: 10px;
+            padding: 5px 10px;
+        }
+    </style>
+    <!-- Use CDN for Cytoscape.js -->
+    <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+</head>
+<body>
+    <h1>Cytoscape Improved Layout Demo</h1>
+    <div id="cy"></div>
+    <div>
+        <button id="force-directed">Force Directed Layout</button>
+        <button id="circular">Circular Layout</button>
+        <button id="grid">Grid Layout</button>
+    </div>
+
+    <!-- Include your layout scripts -->
+    <script src="../src/layouts/force-directed.js"></script>
+    <script src="../src/layouts/circular.js"></script>
+    <script src="../src/layouts/grid.js"></script>
+    
+    <!-- Include your demo script -->
+    <script src="demo.js"></script>
+</body>
+</html>
